@@ -13,20 +13,28 @@ shinyUI(fluidPage(
   titlePanel("Annual Bigfoot Sightings"),
 
   # Sidebar with a slider input for number of bins
-  sidebarLayout(
-    sidebarPanel(
+  fluidRow(
+    column(12,
       sliderInput("yr",
                   "Year of Sighting:",
                   min = 1960,
                   max = 2016,
                   value = 1960,
-                  format = "####",
+                  sep="",
                   animate=TRUE)
-    ),
-
-    # Show a plot of the generated distribution
-    mainPanel(
-      plotOutput("distPlot")
+    )
+  ),
+  fluidRow(
+    column(12,
+           plotOutput("distPlot")
+    )
+  ),
+  
+  fluidRow(
+    column(12,
+           plotOutput("seriesPlot")
     )
   )
+  
+  # Show a plot of the generated distribution
 ))

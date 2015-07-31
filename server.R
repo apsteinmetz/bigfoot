@@ -58,5 +58,13 @@ shinyServer(function(input, output) {
     print(getMap(input$yr))
  
   })
+  output$seriesPlot <- renderPlot({
+    inputYr<-min(input$yr,thisYear-2)
+    fills<-c(rep("grey50",inputYr-startYear),"red",rep("grey50",thisYear-inputYr-2))
+    p<-ggplot(data=subsetYear)
+    p<-p+geom_bar(aes(x=Year,y=number),stat="identity",fill=(fills))
+    print(p)
+    
+  })
 
 })

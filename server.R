@@ -7,11 +7,12 @@
 
 library(shiny)
 library(ggplot2)
-library(data.table)
-#library(maptools)
+library(dplyr)
 library(maps)
-shinyServer(function(input, output) {
+library(mapproj)
 
+shinyServer(function(input, output) {
+  load("state_sum.RData")
   states_map <- map_data("state")
 
   

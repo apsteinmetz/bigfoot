@@ -14,7 +14,7 @@ shinyUI(fluidPage(
 
   # Sidebar with a slider input for number of bins
   fluidRow(
-    column(12,
+    column(6,
       sliderInput("yr",
                   "Year of Sighting:",
                   min = 1960,
@@ -22,7 +22,9 @@ shinyUI(fluidPage(
                   value = 1960,
                   sep="",
                   animate=TRUE)
-    )
+    ),
+    column(6,
+           plotOutput("seriesPlot"))
   ),
   fluidRow(
     column(12,
@@ -32,7 +34,7 @@ shinyUI(fluidPage(
   
   fluidRow(
     column(12,
-           plotOutput("seriesPlot")
+           "source: www.bfro.net"
     )
   )
   

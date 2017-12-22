@@ -5,25 +5,68 @@ output: html_notebook
 load BFRO sighting report from Kaggle dataset
 ```{r}
 library(tidyverse)
+library(broom)
+library(ggplot2)
 library(ggmap)
+library(sp)
+library(maps)
+library(mapproj)
+library(rgdal)
 
-bfro_data<-read_csv("bfro-report-locations.csv")
-bfro_data_states<-bfro_data %>% 
-  select(-title) %>% 
-  mutate(ggloc=c(longitude,latitude))
 
-
-geo_information <- revgeocode(c(-97.358112, 37.683829), output = "more")
-
-geo_information$locality
-# [1] Wichita
-# Levels: Wichita
-
-geo_information$administrative_area_level_1
-# [1] Kansas
-# Levels: Kansas
 ```
 
-Add a new chunk by clicking the *Insert Chunk* button on the toolbar or by pressing *Ctrl+Alt+I*.
+```{r}
 
-When you save the notebook, an HTML file containing the code and output will be saved alongside it (click the *Preview* button or press *Ctrl+Shift+K* to preview the HTML file).
+states_map_48 <- as_data_frame(map_data("state")) %>% select(-subregion)
+states_map_48_nested<-states_map_48 %>% 
+  ungroup() %>% 
+  transmute(state=as.factor(region),
+            longitude=long,
+            latitude=lat)%>%
+  group_by(state) %>% 
+  nest()
+
+# files from https://www.census.gov/geo/maps-data/data/cbf/cbf_counties.html put in gis directory
+states_map_50<-readOGR(dsn="gis",layer="cb_2016_us_state_20m")
+
+
+states_map_50_nested<-tidy(states_map_50) %>% 
+  as_data_frame() %>% 
+  transmute(id=as.factor(id),
+            longitude=long,
+            latitude=lat)%>%
+  group_by(id) %>% 
+  nest() %>% 
+  bind_cols(state=states_map_50$NAME) %>% 
+  group_by(state)
+  
+  
+```
+```{r}
+
+bfro_data<-read_csv("bfro-report-locations.csv")
+bfro_data<-bfro_data %>% mutate(state=as.character(NA))
+
+geo_data <- as_data_frame(read.csv(text="ID,      longitude,      latitude
+30531, -76.04183, 39.73523
+24544, -88.99630, 37.28900
+31153, -81.43248, 28.98491"
+))
+geo_data<-geo_data %>% mutate(state=as.character(NA))
+```
+
+```{r}
+for (st in states_map_50_nested$state){
+  poly.x<-states_map_50_nested %>% filter(state==st) %>% .$data %>% .[[1]] %>% .$longitude
+  poly.y<-states_map_50_nested %>% filter(state==st) %>% .$data %>% .[[1]] %>% .$latitude
+  state_flag<-as.logical(point.in.polygon(bfro_data$longitude,bfro_data$latitude,poly.x,poly.y))
+  if (TRUE %in% state_flag){
+    bfro_data[as.logical(state_flag),]$state=st
+  }
+  
+}
+
+#geo_data %>% mutate(state=point.in.polygon(longitude,latitude,states_map_nested))
+```
+

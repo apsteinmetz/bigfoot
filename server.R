@@ -10,6 +10,7 @@ library(ggplot2)
 library(dplyr)
 library(maps)
 library(mapproj)
+library(sp)
 
 shinyServer(function(input, output) {
   load("state_sum.RData")

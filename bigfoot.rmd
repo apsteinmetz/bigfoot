@@ -4,10 +4,12 @@ output: html_notebook
 ---
 load BFRO sighting report from Kaggle dataset
 ```{r}
+library(devtools)
 library(tidyverse)
 library(broom)
 library(lubridate)
 library(ggplot2)
+#install_github("dkahle/ggmap")
 library(ggmap)
 #library(sp)
 library(maps)
@@ -18,7 +20,7 @@ library(rgdal)
 ```
 
 ```{r}
-
+states_map<-map_data("state")
 states_map_48 <- as_data_frame(map_data("state")) %>% select(-subregion)
 states_map_48_nested<-states_map_48 %>% 
   ungroup() %>% 
@@ -34,15 +36,13 @@ states_map_50<-readOGR(dsn="gis",layer="cb_2016_us_state_20m")
 
 states_map_50_nested<-tidy(states_map_50) %>% 
   as_data_frame() %>% 
-  transmute(id=as.factor(id),
-            longitude=long,
-            latitude=lat)%>%
+  mutate(id=as.factor(id)) %>% 
   group_by(id) %>% 
   nest() %>% 
-  bind_cols(state=states_map_50$NAME) %>% 
-  group_by(state)
+  bind_cols(region=states_map_50$NAME) %>% 
+  group_by(region)
   
-  
+states_map_50<-states_map_50_nested %>% unnest()  %>% select(id,region,long,lat)
 ```
 ```{r}
 
@@ -91,12 +91,20 @@ state_sum<-bfro_data %>% group_by(state,Year) %>% summarise(count=n())
     return (gg)
   }
   
- #set up map plot defaults
+
+ggplot()+geom_map(data=states_map_48,map=states_map_48,aes(x=long,y=lat,map_id=region),color="white",fill="grey")+coord_map()
+
+#set up map plot defaults
   thisYear<-year(Sys.Date())
   maxSights<-state_sum %>% filter(Year<thisYear+1) %>% summarize(maxSights=max(count))
-  gg<-ggplot(state_sum, aes(map_id = state)) + 
-    geom_map(aes(fill = count), map = states_map_48) + 
-    expand_limits(x = bfro_data$longitude, y = bfro_data$latitude)
+  gg<-ggplot(state_sum, aes(map_id =region)) + 
+#    geom_map(data=states_map_48,aes(fill = count), map = states_map_48) + 
+#    expand_limits(x = bfro_data$longitude, y = bfro_data$latitude)
+#  gg<-ggplot() + 
+    geom_map(data=states_map_48,map=states_map_48,aes(x=long,y=lat,map_id=region),color="white",fill="grey")+
+    coord_map()
+  #+
+  #  expand_limits(x = bfro_data$longitude, y = bfro_data$latitude)
   gg <- gg + theme_bw()
   gg <- gg + scale_fill_distiller(name="Bigfoot\nSightings", palette="Greens", na.value="#7f7f7f",limits=c(0,maxSights))
   gg <- gg + theme(plot.title=element_text(face="bold", hjust=0, size=24))
@@ -108,7 +116,7 @@ state_sum<-bfro_data %>% group_by(state,Year) %>% summarise(count=n())
   gg <- gg + theme(strip.background=element_blank())
   gg <- gg+borders("state")
   
-print(get_map(gg,state_sum))
+print(getMap(gg,state_sum))
 #timeline of all sightings  
 startYear<-1990
 inputYr<-2001

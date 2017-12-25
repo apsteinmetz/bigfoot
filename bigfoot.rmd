@@ -4,12 +4,10 @@ output: html_notebook
 ---
 load BFRO sighting report from Kaggle dataset
 ```{r}
-library(devtools)
 library(tidyverse)
 library(broom)
 library(lubridate)
 library(ggplot2)
-#install_github("dkahle/ggmap")
 library(ggmap)
 #library(sp)
 library(maps)
@@ -58,12 +56,12 @@ geo_data<-geo_data %>% mutate(state=as.character(NA))
 ```
 
 ```{r}
-for (st in states_map_50_nested$state){
-  poly.x<-states_map_50_nested %>% filter(state==st) %>% .$data %>% .[[1]] %>% .$longitude
-  poly.y<-states_map_50_nested %>% filter(state==st) %>% .$data %>% .[[1]] %>% .$latitude
+for (st in states_map_50_nested$region){
+  poly.x<-states_map_50_nested %>% filter(region==st) %>% .$data %>% .[[1]] %>% .$longitude
+  poly.y<-states_map_50_nested %>% filter(region==st) %>% .$data %>% .[[1]] %>% .$latitude
   state_flag<-as.logical(point.in.polygon(bfro_data$longitude,bfro_data$latitude,poly.x,poly.y))
   if (TRUE %in% state_flag){
-    bfro_data[as.logical(state_flag),]$state=st
+    bfro_data[as.logical(state_flag),]$region=st
   }
   
 }

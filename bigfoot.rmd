@@ -13,6 +13,8 @@ library(ggmap)
 library(maps)
 library(mapproj)
 library(rgdal)
+library(choroplethr)
+library(choroplethrMaps)
 
 
 ```

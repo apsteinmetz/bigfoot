@@ -49,14 +49,10 @@ states_map_50<-states_map_50_nested %>% unnest()  %>% select(id,region,long,lat)
 bfro_data<-read_csv("bfro-report-locations.csv")
 bfro_data<-bfro_data %>% mutate(region=as.character(NA))
 
-geo_data <- as_data_frame(read.csv(text="ID,      longitude,      latitude
-30531, -76.04183, 39.73523
-24544, -88.99630, 37.28900
-31153, -81.43248, 28.98491"
-))
-geo_data<-geo_data %>% mutate(region=as.character(NA))
 ```
 
+
+Use the point.in.poly function to assign a state to the lat/long data in data set from Kaggle.
 ```{r}
 for (st in states_map_50_nested$region){
   poly.x<-states_map_50_nested %>% filter(region==st) %>% .$data %>% .[[1]] %>% .$long
@@ -68,7 +64,8 @@ for (st in states_map_50_nested$region){
   
 }
 bfro_data<-bfro_data %>% mutate(Year=year(timestamp))
-state_sum<-bfro_data %>% group_by(region,Year) %>% summarise(count=n()) 
+state_sum<-bfro_data %>%  mutate(region=str_to_lower(region)) %>% group_by(region) %>% summarise(value=n())
+state_year_sum<-bfro_data  %>% mutate(region=str_to_lower(region)) %>% group_by(region,Year) %>% summarise(value=n())
 
 ```
 
@@ -94,9 +91,16 @@ state_sum<-bfro_data %>% group_by(region,Year) %>% summarise(count=n())
 
 #ggplot()+geom_map(data=states_map_48,map=states_map_48,aes(x=long,y=lat,map_id=region),color="white",fill="grey")+coord_map()
 
+gg<-state_choropleth(state_sum,num_colors = 1)+ggtitle("All Sighting Years")
+gg <- gg + scale_fill_distiller(name="Bigfoot\nSightings", palette="Greens",direction = 1)
+
+print(gg)
+```
+
+```{r}
 #set up map plot defaults
   thisYear<-year(Sys.Date())
-maxSights<-max(state_sum$count)
+maxSights<-max(state_sum$value)
 #  gg<-ggplot(state_sum, 
 #             aes(map_id =region)) + 
   gg<-ggplot() + 
@@ -109,7 +113,7 @@ maxSights<-max(state_sum$count)
   #+
   #  expand_limits(x = bfro_data$longitude, y = bfro_data$latitude)
   #gg <- gg + theme_bw()
-  #gg <- gg + scale_fill_distiller(name="Bigfoot\nSightings", palette="Greens", na.value="#7f7f7f",limits=c(0,maxSights))
+  gg <- gg + scale_fill_distiller(name="Bigfoot\nSightings", palette="Greens", na.value="#7f7f7f",limits=c(maxSights,0))
   # gg <- gg + theme(plot.title=element_text(face="bold", hjust=0, size=24))
   # gg <- gg + theme(panel.border=element_blank())
   # gg <- gg + theme(panel.grid=element_blank())
@@ -125,12 +129,23 @@ print(getMap(gg,state_sum,2001))
 ```{r}
 #timeline of all sightings  
 startYear<-1980
-inputYr<-2001
-fills<-c(rep("grey50",inputYr-startYear-1),"red",rep("grey50",thisYear-inputYr))
-subsetYear<-state_sum %>% filter(Year>startYear,Year<thisYear+1) %>% group_by(Year) %>% summarize(count=sum(count))
+#fills<-c(rep("darkgreen",inputYr-startYear-1),"blue",rep("darkgreen",thisYear-inputYr))
+#subsetYear<-state_year_sum %>% filter(Year>startYear,Year<thisYear+1) %>% group_by(Year) %>% summarize(Sightings=sum(value))
 p<-ggplot(data=subsetYear)
-p<-p+geom_col(aes(x=Year,y=count),fill=(fills))
+p<-p+geom_col(aes(x=Year,y=Sightings),fill="darkgreen")+ggtitle("USA Bigfoot Sightings by Year")
 print(p)
 
 ```
 
+```{r}
+#timeline of all sightings highlighting particular year  
+startYear<-1980
+inputYr<-2001
+thisYear<-year(Sys.Date())
+fills<-c(rep("darkgreen",inputYr-startYear-1),"blue",rep("darkgreen",thisYear-inputYr))
+subsetYear<-state_year_sum %>% filter(Year>startYear,Year<thisYear+1) %>% group_by(Year) %>% summarize(Sightings=sum(value))
+p<-ggplot(data=subsetYear)
+p<-p+geom_col(aes(x=Year,y=Sightings),fill=(fills))
+print(p)
+
+```

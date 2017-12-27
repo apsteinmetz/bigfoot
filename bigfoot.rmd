@@ -63,10 +63,12 @@ for (st in states_map_50_nested$region){
   }
   
 }
-bfro_data<-bfro_data %>% mutate(Year=year(timestamp))
+bfro_data<-bfro_data %>% mutate(Year=year(timestamp)) %>% filter(Year<=year(Sys.Date()))
 state_sum<-bfro_data %>%  mutate(region=str_to_lower(region)) %>% group_by(region) %>% summarise(value=n())
 state_year_sum<-bfro_data  %>% mutate(region=str_to_lower(region)) %>% group_by(region,Year) %>% summarise(value=n())
-
+#fill in missing years with zero
+state_year_sum<-state_year_sum %>%  
+  complete(Year=full_seq(state_year_sum$Year,1),fill=list(value=0))
 ```
 
 ```{r}
@@ -128,7 +130,6 @@ print(getMap(gg,state_sum,2001))
 
 ```{r}
 #timeline of all sightings  
-startYear<-1980
 #fills<-c(rep("darkgreen",inputYr-startYear-1),"blue",rep("darkgreen",thisYear-inputYr))
 #subsetYear<-state_year_sum %>% filter(Year>startYear,Year<thisYear+1) %>% group_by(Year) %>% summarize(Sightings=sum(value))
 p<-ggplot(data=subsetYear)
@@ -139,11 +140,14 @@ print(p)
 
 ```{r}
 #timeline of all sightings highlighting particular year  
-startYear<-1980
+startYear<-1970
 inputYr<-2001
 thisYear<-year(Sys.Date())
 fills<-c(rep("darkgreen",inputYr-startYear-1),"blue",rep("darkgreen",thisYear-inputYr))
-subsetYear<-state_year_sum %>% filter(Year>startYear,Year<thisYear+1) %>% group_by(Year) %>% summarize(Sightings=sum(value))
+subsetYear<-state_year_sum %>% 
+  filter(Year>=startYear,Year<=thisYear) %>% 
+  group_by(Year) %>% 
+  summarize(Sightings=sum(value))
 p<-ggplot(data=subsetYear)
 p<-p+geom_col(aes(x=Year,y=Sightings),fill=(fills))
 print(p)

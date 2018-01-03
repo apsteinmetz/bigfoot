@@ -42,7 +42,9 @@ states_map_50_nested<-tidy(states_map_50) %>%
   bind_cols(region=states_map_50$NAME) %>% 
   group_by(region)
   
-states_map_50<-states_map_50_nested %>% unnest()  %>% select(id,region,long,lat)
+states_map_50<-states_map_50_nested %>% 
+  unnest()  %>% 
+  select(id,region,long,lat)
 ```
 ```{r}
 
@@ -57,6 +59,7 @@ geo_data <- as_data_frame(read.csv(text="ID,      longitude,      latitude
 geo_data<-geo_data %>% mutate(region=as.character(NA))
 ```
 
+Reverse geocode state names as "region" using point.in.poly function and summarise state sighting count by year.,
 ```{r}
 for (st in states_map_50_nested$region){
   poly.x<-states_map_50_nested %>% filter(region==st) %>% .$data %>% .[[1]] %>% .$long
@@ -121,15 +124,20 @@ maxSights<-max(state_sum$count)
   
 print(getMap(gg,state_sum,2001))
 ```
-
+Bar chart of total US sightings, with a single year highlighted.
 ```{r}
 #timeline of all sightings  
 startYear<-1980
 inputYr<-2001
-fills<-c(rep("grey50",inputYr-startYear-1),"red",rep("grey50",thisYear-inputYr))
-subsetYear<-state_sum %>% filter(Year>startYear,Year<thisYear+1) %>% group_by(Year) %>% summarize(count=sum(count))
+fills<-c(rep("grey50",inputYr-startYear),
+         "red",
+         rep("grey50",thisYear-inputYr-1))
+subsetYear<-state_sum %>% 
+  filter(Year>=startYear,Year<=thisYear) %>% 
+  group_by(Year) %>% 
+  summarize(count=sum(count))
 p<-ggplot(data=subsetYear)
-p<-p+geom_col(aes(x=Year,y=count),fill=(fills))
+p<-p+geom_col(aes(x=Year,y=count),fill=fills)
 print(p)
 
 ```

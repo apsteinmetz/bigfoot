@@ -42,9 +42,7 @@ states_map_50_nested<-tidy(states_map_50) %>%
   bind_cols(region=states_map_50$NAME) %>% 
   group_by(region)
   
-states_map_50<-states_map_50_nested %>% 
-  unnest()  %>% 
-  select(id,region,long,lat)
+states_map_50<-states_map_50_nested %>% unnest()  %>% select(id,region,long,lat)
 ```
 ```{r}
 
@@ -53,12 +51,8 @@ bfro_data<-bfro_data %>% mutate(region=as.character(NA))
 
 ```
 
-<<<<<<< HEAD
 
 Use the point.in.poly function to assign a state to the lat/long data in data set from Kaggle.
-=======
-Reverse geocode state names as "region" using point.in.poly function and summarise state sighting count by year.,
->>>>>>> 46bb5b6f0bea74d1e88508223988d7d2ec6e8c3d
 ```{r}
 for (st in states_map_50_nested$region){
   poly.x<-states_map_50_nested %>% filter(region==st) %>% .$data %>% .[[1]] %>% .$long
@@ -133,27 +127,13 @@ maxSights<-max(state_sum$value)
   
 print(getMap(gg,state_sum,2001))
 ```
-Bar chart of total US sightings, with a single year highlighted.
+
 ```{r}
 #timeline of all sightings  
-<<<<<<< HEAD
 #fills<-c(rep("darkgreen",inputYr-startYear-1),"blue",rep("darkgreen",thisYear-inputYr))
 #subsetYear<-state_year_sum %>% filter(Year>startYear,Year<thisYear+1) %>% group_by(Year) %>% summarize(Sightings=sum(value))
 p<-ggplot(data=subsetYear)
 p<-p+geom_col(aes(x=Year,y=Sightings),fill="darkgreen")+ggtitle("USA Bigfoot Sightings by Year")
-=======
-startYear<-1980
-inputYr<-2001
-fills<-c(rep("grey50",inputYr-startYear),
-         "red",
-         rep("grey50",thisYear-inputYr-1))
-subsetYear<-state_sum %>% 
-  filter(Year>=startYear,Year<=thisYear) %>% 
-  group_by(Year) %>% 
-  summarize(count=sum(count))
-p<-ggplot(data=subsetYear)
-p<-p+geom_col(aes(x=Year,y=count),fill=fills)
->>>>>>> 46bb5b6f0bea74d1e88508223988d7d2ec6e8c3d
 print(p)
 
 ```

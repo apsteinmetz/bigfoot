@@ -20,19 +20,9 @@ library(choroplethrMaps)
 ```
 
 ```{r}
-states_map<-map_data("state")
-states_map_48 <- as_data_frame(map_data("state")) %>% select(-subregion)
-states_map_48_nested<-states_map_48 %>% 
-  ungroup() %>% 
-  transmute(region=as.factor(region),
-            longitude=long,
-            latitude=lat)%>%
-  group_by(region) %>% 
-  nest()
 
 # files from https://www.census.gov/geo/maps-data/data/cbf/cbf_counties.html put in gis directory
 states_map_50<-readOGR(dsn="gis",layer="cb_2016_us_state_20m")
-
 
 states_map_50_nested<-tidy(states_map_50) %>% 
   as_data_frame() %>% 
@@ -47,12 +37,13 @@ states_map_50<-states_map_50_nested %>% unnest()  %>% select(id,region,long,lat)
 ```{r}
 
 bfro_data<-read_csv("bfro-report-locations.csv")
-bfro_data<-bfro_data %>% mutate(region=as.character(NA))
+bfro_data<-bfro_data %>% mutate(region=as.character(NA)) %>% 
+  select(matches("[^(title)]"),title)
 
 ```
 
 
-Use the point.in.poly function to assign a state to the lat/long data in data set from Kaggle.
+Use the point.in.poly function to assign a state to the lat/long data in data set from we got from Kaggle.
 ```{r}
 for (st in states_map_50_nested$region){
   poly.x<-states_map_50_nested %>% filter(region==st) %>% .$data %>% .[[1]] %>% .$long
@@ -63,14 +54,18 @@ for (st in states_map_50_nested$region){
   }
   
 }
-bfro_data<-bfro_data %>% mutate(Year=year(timestamp)) %>% filter(Year<=year(Sys.Date()))
+bfro_data<-bfro_data %>% 
+  mutate(Year=year(timestamp)) %>% 
+  filter(Year<=year(Sys.Date())) %>%
+  select(Year,region,everything()) %>% 
+  arrange(Year,region,number)
 state_sum<-bfro_data %>%  mutate(region=str_to_lower(region)) %>% group_by(region) %>% summarise(value=n())
 state_year_sum<-bfro_data  %>% mutate(region=str_to_lower(region)) %>% group_by(region,Year) %>% summarise(value=n())
 #fill in missing years with zero
 state_year_sum<-state_year_sum %>%  
   complete(Year=full_seq(state_year_sum$Year,1),fill=list(value=0))
 ```
-
+Show a choropleth of all sighting frequencies by state
 ```{r}
   
   getMap<-function(g,bf_data,year=0) {
@@ -98,6 +93,27 @@ gg <- gg + scale_fill_distiller(name="Bigfoot\nSightings", palette="Greens",dire
 
 print(gg)
 ```
+
+Show a choropleth of all sighting frequencies for a particular year.
+```{r}
+inputYr=2017
+maxSights<-max(state_year_sum$value)
+
+gg<-state_year_sum %>% 
+  filter(Year==inputYr) %>% 
+  ungroup() %>% 
+  select(region,value) %>% 
+  state_choropleth(num_colors = 1)
+
+gg <- gg + scale_fill_distiller(name="Bigfoot\nSightings", 
+                                palette="Greens",
+                                direction = 1,
+                                limits=c(0,maxSights)) + ggtitle(inputYr)
+
+print(gg)
+
+```
+
 
 ```{r}
 #set up map plot defaults
@@ -130,8 +146,14 @@ print(getMap(gg,state_sum,2001))
 
 ```{r}
 #timeline of all sightings  
-#fills<-c(rep("darkgreen",inputYr-startYear-1),"blue",rep("darkgreen",thisYear-inputYr))
-#subsetYear<-state_year_sum %>% filter(Year>startYear,Year<thisYear+1) %>% group_by(Year) %>% summarize(Sightings=sum(value))
+
+thisYear<-year(Sys.Date())
+maxSights<-max(state_sum$value)
+startYear<-1970
+subsetYear<-state_year_sum %>% 
+  filter(Year>startYear,Year<thisYear+1) %>% 
+  group_by(Year) %>% 
+  summarize(Sightings=sum(value))
 p<-ggplot(data=subsetYear)
 p<-p+geom_col(aes(x=Year,y=Sightings),fill="darkgreen")+ggtitle("USA Bigfoot Sightings by Year")
 print(p)

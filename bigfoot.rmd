@@ -10,19 +10,28 @@ library(lubridate)
 library(ggplot2)
 library(rgdal)
 library(choroplethr)
+library(choroplethrMaps)
+library(maps)
 library(magick)
+library(plotly)
 
 ```
-Load BFRO sigh.ting report from Kaggle dataset. Reorder so that `title`,which is the description text is the last column. Add empty `region` field that we will populate with the state later. Filter for bad values.
+Load BFRO sighting report from Kaggle dataset. This is sourced from BFRO.net.  I assume the file is parsed from the Google Earth placemarks file found [here](http://www.bfro.net/app/AllReports.kmz).  You will need a Kaggle account to download the files.
+
+Reorder the table column so that `title`,which is the description text is the last column. Add empty `region` field that we will populate with the state later. Filter for bad values.
 
 ```{r message=FALSE}
-
+# you must log in to Kaggle download this data set
+# https://www.kaggle.com/chemcnabb/bfro-bigfoot-sighting-report/downloads/bfro-report-locations.csv
 bfro_data<-read_csv("bfro-report-locations.csv")
-bfro_data<-bfro_data %>% mutate(region=as.character(NA)) %>% 
-  select(matches("[^(title)]"),title)
 bfro_data<-bfro_data %>% 
+  mutate(region=as.character(NA)) %>% 
+  rename(lat=latitude) %>% 
+  rename(long=longitude) %>% 
+  mutate(timestamp=as.Date(timestamp)) %>% 
+  select(matches("[^(title)]"),title) %>% 
   filter(timestamp<Sys.Date()) %>%
-  filter(abs(latitude<90),abs(longitude)<180)
+  filter(abs(lat<90),abs(long)<180)
 
 bfro_data
 ```
@@ -45,25 +54,19 @@ states_map_50_nested<-tidy(states_map_50) %>%
   bind_cols(region=states_map_50$NAME) %>% 
   group_by(region)
   
-states_map<-states_map_50_nested %>% unnest()  %>% select(id,region,long,lat)
+states_map<-states_map_50_nested %>% unnest()  %>% select(id,order,region,long,lat)
 states_map
 ```
 
-This table is a format that `point.in.poly` can use.
-
-Use the point.in.poly function to assign a state to the lat/long data in data set from we got from Kaggle.  We loop through each state and test all sighting coordinates against current the state polygon.  We flag each 'hit' as `TRUE` and assign the current state label to each hit in `bfro_data`.
-
+Use `maps::map.where` to assign a state to the lat/long data in data set from we got from Kaggle. Clean up some odd regions.
 
 ```{r}
-for (st in states_map_50_nested$region){
-  poly.x<-states_map_50_nested %>% filter(region==st) %>% .$data %>% .[[1]] %>% .$long
-  poly.y<-states_map_50_nested %>% filter(region==st) %>% .$data %>% .[[1]] %>% .$lat
-  state_flag<-as.logical(point.in.polygon(bfro_data$longitude,bfro_data$latitude,poly.x,poly.y))
-  if (TRUE %in% state_flag){
-    bfro_data[as.logical(state_flag),]$region=st
-  }
-  
-}
+bfro_data<-bfro_data %>% 
+  mutate(region=map.where("state",bfro_data$long,bfro_data$lat)) %>% 
+  mutate(region=str_replace(region,":[a-z]+","")) %>% 
+  mutate(region=str_replace(region,"washington island","washington")) %>% 
+  filter(region != "puerto rico") %>% 
+  na.omit()
 ```
 
 Finally, to clean up the data set we get the year from the time stamp, make sure no impossible dates exist and summarise the sighting counts by state, then by state and year.
@@ -73,25 +76,96 @@ bfro_data<-bfro_data %>%
   mutate(Year=year(timestamp)) %>% 
   filter(Year<=year(Sys.Date())) %>%
   select(Year,region,everything()) %>% 
-  arrange(Year,region,number)
+  arrange(Year,region,number) %>% 
+  na.omit()
 state_sum<-bfro_data %>%  mutate(region=str_to_lower(region)) %>% group_by(region) %>% summarise(value=n())
 state_year_sum<-bfro_data  %>% mutate(region=str_to_lower(region)) %>% group_by(region,Year) %>% summarise(value=n())
-#fill in missing years with zero
-state_year_sum<-state_year_sum %>%  
+
+
+#fill in missing years and missing states with zero 
+state_list<-states_map %>% 
+  ungroup() %>% 
+  select(region) %>% 
+  unique() %>% 
+  filter(region != "Puerto Rico") %>% 
+  mutate(region=tolower(region))
+
+state_year_sum<-state_year_sum %>%
+  full_join(state_list) %>% 
   complete(Year=full_seq(state_year_sum$Year,1),fill=list(value=0))
+
+state_sum<-state_sum %>%
+  full_join(state_list) %>% 
+  complete(region,fill=list(value=0))
 ```
 Show a choropleth of all sighting frequencies by state
-```{r message=FALSE, warning=FALSE}
+```{r}
 
 gg<-state_choropleth(state_sum,num_colors = 1)+ggtitle("All Sighting Years")
 gg <- gg + scale_fill_distiller(name="Bigfoot\nSightings", palette="Greens",direction = 1)
 #gg<-ggplot()+geom_point(data=ungroup(bfro_data),aes(x=longitude,y=latitude))+coord_map()
-
 gg
 ```
 
+If we want to make this chart more interactive we can use the plotly package which has a nice choropleth facility built in.
+
+```{r}
+df <- read.csv("https://raw.githubusercontent.com/plotly/datasets/master/2011_us_ag_exports.csv")
+df$hover <- with(df, paste(state, '<br>', "Beef", beef, "Dairy", dairy, "<br>",
+                           "Fruits", total.fruits, "Veggies", total.veggies,
+                           "<br>", "Wheat", wheat, "Corn", corn))
+# give state boundaries a white border
+l <- list(color = toRGB("white"), width = 2)
+# specify some map projection/options
+g <- list(
+  scope = 'usa',
+  projection = list(type = 'albers usa'),
+  showlakes = TRUE,
+  lakecolor = toRGB('white')
+)
+
+p <- plot_geo(df, locationmode = 'USA-states') %>%
+  add_trace(
+    z = ~total.exports, text = ~hover, locations = ~code,
+    color = ~total.exports, colors = 'Purples'
+  ) %>%
+  colorbar(title = "Millions USD") %>%
+  layout(
+    title = '2011 US Agriculture Exports by State<br>(Hover for breakdown)',
+    geo = g
+  )
+p
+
+map_data("world") %>%
+  group_by(group) %>%
+  plot_geo(x = ~long, y = ~lat) %>%
+  add_markers(size = I(1))
+
+```
+Just use ggplot and maps
+```{r}
+if (require("maps")) {
+states <- as_data_frame(map_data("state"))
+arrests <- as_data_frame(USArrests)
+names(arrests) <- tolower(names(arrests))
+arrests$region <- tolower(rownames(USArrests))
+
+choro <- left_join(states, arrests, by = "region") %>% 
+  group_by(region) %>% 
+  arrange(order)
+ggplot(choro, aes(long, lat)) +
+  geom_polygon(aes(group = group, fill = assault)) +
+  coord_map("albers",  at0 = 45.5, lat1 = 29.5)
+
+ggplot(choro, aes(long, lat)) +
+  geom_polygon(aes(group = group, fill = assault / murder)) +
+  coord_map("albers",  at0 = 45.5, lat1 = 29.5)
+}
+```
+
+
 Show a choropleth of all sighting frequencies for a particular year.
-```{r message=FALSE, warning=FALSE}
+```{r message=TRUE, warning=TRUE}
 thisYear<-year(Sys.Date())
 inputYr=2017
 maxSights<-max(state_year_sum$value)

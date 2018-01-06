@@ -17,9 +17,9 @@ shinyUI(fluidPage(
     column(6,
       sliderInput("yr",
                   "Year of Sighting:",
-                  min = 1960,
-                  max = 2016,
-                  value = 1960,
+                  min = startYear,
+                  max = 2018,
+                  value = startYear,
                   sep="",
                   animate=TRUE)
     ),

@@ -13,13 +13,16 @@ library(choroplethr)
 library(magick)
 
 ```
-Load BFRO sigh.ting report from Kaggle dataset. Reorder so that `title`,which is the description text is the last column. Add empty `region` field that we will populate with the state later.
+Load BFRO sigh.ting report from Kaggle dataset. Reorder so that `title`,which is the description text is the last column. Add empty `region` field that we will populate with the state later. Filter for bad values.
 
 ```{r message=FALSE}
 
 bfro_data<-read_csv("bfro-report-locations.csv")
 bfro_data<-bfro_data %>% mutate(region=as.character(NA)) %>% 
   select(matches("[^(title)]"),title)
+bfro_data<-bfro_data %>% 
+  filter(timestamp<Sys.Date()) %>%
+  filter(abs(latitude<90),abs(longitude)<180)
 
 bfro_data
 ```
@@ -82,6 +85,7 @@ Show a choropleth of all sighting frequencies by state
 
 gg<-state_choropleth(state_sum,num_colors = 1)+ggtitle("All Sighting Years")
 gg <- gg + scale_fill_distiller(name="Bigfoot\nSightings", palette="Greens",direction = 1)
+#gg<-ggplot()+geom_point(data=ungroup(bfro_data),aes(x=longitude,y=latitude))+coord_map()
 
 gg
 ```

@@ -54,8 +54,14 @@ states_map_50_nested<-tidy(states_map_50) %>%
   bind_cols(region=states_map_50$NAME) %>% 
   group_by(region)
   
-states_map<-states_map_50_nested %>% unnest()  %>% select(id,order,region,long,lat)
+states_map<-states_map_50_nested %>% 
+  unnest()  %>% 
+  select(id,order,region,long,lat) %>% 
+  ungroup() %>% 
+  mutate(region=tolower(region)) %>% 
+  group_by(region)
 states_map
+#save(states_map,file="states_map.rdata")
 ```
 
 Use `maps::map.where` to assign a state to the lat/long data in data set from we got from Kaggle. Clean up some odd regions.
@@ -144,23 +150,23 @@ map_data("world") %>%
 ```
 Just use ggplot and maps
 ```{r}
-if (require("maps")) {
-states <- as_data_frame(map_data("state"))
-arrests <- as_data_frame(USArrests)
-names(arrests) <- tolower(names(arrests))
-arrests$region <- tolower(rownames(USArrests))
+states <- states_map #as_data_frame(map_data("state"))
+#arrests <- as_data_frame(USArrests)
+#names(arrests) <- tolower(names(arrests))
+#arrests$region <- tolower(rownames(USArrests))
 
-choro <- left_join(states, arrests, by = "region") %>% 
+state_sum<-state_sum %>% filter(region != "alaska")
+
+choro <- left_join(states, state_sum, by = "region") %>% 
   group_by(region) %>% 
-  arrange(order)
-ggplot(choro, aes(long, lat)) +
-  geom_polygon(aes(group = group, fill = assault)) +
-  coord_map("albers",  at0 = 45.5, lat1 = 29.5)
+  arrange(order)%>% 
+  filter(region != "alaska") %>% 
+  filter(region != "hawaii")
 
 ggplot(choro, aes(long, lat)) +
-  geom_polygon(aes(group = group, fill = assault / murder)) +
-  coord_map("albers",  at0 = 45.5, lat1 = 29.5)
-}
+  geom_polygon(aes(group = region, fill = value)) +
+ # coord_map("albers",  at0 = 45.5, lat1 = 29.5)
+  coord_map()+ scale_fill_distiller(name="Bigfoot\nSightings", palette="Greens",direction = 1)+theme_minimal()
 ```
 
 

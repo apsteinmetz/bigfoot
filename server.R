@@ -3,9 +3,7 @@
 library(shiny)
 library(ggplot2)
 library(dplyr)
-library(maps)
-library(mapproj)
-library(sp)
+
 
 shinyServer(function(input, output) {
   
@@ -14,12 +12,14 @@ shinyServer(function(input, output) {
   output$distPlot <- renderPlot({
      
     inputYr<-min(input$yr,maxYear)
-    gg<-state_year_sum %>% 
+    one_year<-state_year_sum %>% 
       filter(Year==inputYr) %>% 
       ungroup() %>% 
-      select(region,value) %>% 
-      state_choropleth(num_colors = 1)
+      select(region,value)
     
+    maxSights<-max(one_year$value)
+  
+    gg<-one_year %>% state_choropleth(num_colors = 1)
     gg <- gg + scale_fill_distiller(name="Bigfoot\nSightings", 
                                     palette="Greens",
                                     direction = 1,

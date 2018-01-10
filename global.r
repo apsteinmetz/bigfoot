@@ -2,9 +2,9 @@ library(tidyverse)
 library(broom)
 library(lubridate)
 library(ggplot2)
-library(rgdal)
 library(choroplethr)
 library(maps)
+
 
 
 # you must log in to Kaggle download this data set
@@ -20,7 +20,7 @@ bfro_data<-bfro_data %>%
   filter(abs(lat<90),abs(long)<180)
 
 load("states_map.rdata")
-#This table is a format that `point.in.poly` can use.
+
 
 bfro_data<-bfro_data %>% 
   mutate(region=map.where("state",bfro_data$long,bfro_data$lat)) %>% 
@@ -35,24 +35,35 @@ bfro_data<-bfro_data %>%
   filter(Year<=year(Sys.Date())) %>%
   select(Year,region,everything()) %>% 
   arrange(Year,region,number)
-state_sum<-bfro_data %>%  mutate(region=str_to_lower(region)) %>% group_by(region) %>% summarise(value=n())
-state_year_sum<-bfro_data  %>% mutate(region=str_to_lower(region)) %>% group_by(region,Year) %>% summarise(value=n())
+state_sum<-bfro_data %>%  
+  mutate(region=str_to_lower(region)) %>% 
+  group_by(region) %>% 
+  summarise(value=as.integer(n()))
+state_year_sum<-bfro_data  %>% 
+  mutate(region=str_to_lower(region)) %>% 
+  group_by(region,Year) %>% 
+  summarise(value=as.integer(n()))
 
 #fill in missing years and missing states with zero 
 state_list<-states_map %>% 
   ungroup() %>% 
   select(region) %>% 
   unique() %>% 
-  filter(region != "Puerto Rico") %>% 
   mutate(region=tolower(region))
 
 state_year_sum<-state_year_sum %>%
   full_join(state_list) %>% 
-  complete(Year=full_seq(state_year_sum$Year,1),fill=list(value=0))
+  complete(Year=full_seq(state_year_sum$Year,1),fill=list(value=0)) %>% 
+  mutate(value=as.integer(value)) %>% 
+  filter(region != "puerto rico") 
+
 
 state_sum<-state_sum %>%
   full_join(state_list) %>% 
-  complete(region,fill=list(value=0))
+  complete(region,fill=list(value=0)) %>% 
+  mutate(value=as.integer(value)) %>% 
+  filter(region != "puerto rico") 
+
 maxYear<-max(state_year_sum$Year)
 maxSights<-max(state_year_sum$value)
 startYear=1960

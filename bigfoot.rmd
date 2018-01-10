@@ -2,18 +2,27 @@
 title: "Bigfoot Sightings"
 output: html_notebook
 ---
+A couple years ago I was first introduced to choropleth maps in R by [this](http://www.joshuastevens.net/visualization/squatch-watch-92-years-of-bigfoot-sightings-in-us-and-canada/) beautiful visualization of bigfoot sightings by Joshua Stevens. As a way to learn the basics of Shiny web apps I developed an animated timeline of bigfoot sightings which you can see [here.](https://viztoy.shinyapps.io/bigfoot/)
+
+During this process I was struck by many disparate approaches there are in R to create maps.  More recently I've seen some developments that bring yet another but more coherent approach.  I thought I'd revist my bigfoot map using this new approach.  If you've worked with GIS data you've probably imported ESRI shapefiles.  The common tools used in R create, IMHO, an unholy mess of a data structure.  I was thrilled to see the release of the `sf` package which brings shapefiles into R in a very "tidyverse" way.  Further ggplot2 is being enhanced to handle these data structures directly, opening the way for very complicated GIS manipulations in very few lines of clearly readable code.
+
+
 Load packages.
 ```{r message=FALSE, warning=FALSE}
+#devtools::install_github("r-spatial/sf")
 library(tidyverse)
 library(broom)
 library(lubridate)
 library(ggplot2)
-library(rgdal)
+library(ggmap)
+library(sf)
+#library(rgdal)
 library(choroplethr)
 library(choroplethrMaps)
 library(maps)
 library(magick)
 library(plotly)
+library(rvest)
 
 ```
 Load BFRO sighting report from Kaggle dataset. This is sourced from BFRO.net.  I assume the file is parsed from the Google Earth placemarks file found [here](http://www.bfro.net/app/AllReports.kmz).  You will need a Kaggle account to download the files.
@@ -23,6 +32,9 @@ Reorder the table column so that `title`,which is the description text is the la
 ```{r message=FALSE}
 # you must log in to Kaggle download this data set
 # https://www.kaggle.com/chemcnabb/bfro-bigfoot-sighting-report/downloads/bfro-report-locations.csv
+
+
+
 bfro_data<-read_csv("bfro-report-locations.csv")
 bfro_data<-bfro_data %>% 
   mutate(region=as.character(NA)) %>% 
@@ -33,28 +45,47 @@ bfro_data<-bfro_data %>%
   filter(timestamp<Sys.Date()) %>%
   filter(abs(lat<90),abs(long)<180)
 
+#direct link
+#download.file("http://www.bfro.net/app/AllReports.kmz","allreports.kmz")
+#bfro_data<-st_read("allreports.kmz")
+
 bfro_data
+```
+Alternative direct way to get BFRO data.
+
+```{r}
+#reports<-  st_read("reports.kml")
+
+#download.file("http://www.bfro.net/app/AllReportsKMZ.aspx","allreports.kmz")
+
+#doc_kml<-unz("allreports.kmz","doc.kml")
+
+reports_xml<-read_xml("reports.kml")
+report_nodes<-reports_xml %>% 
+  xml_children() %>% 
+  xml_children() %>% 
+  .[3:5] %>%
+  xml_children()
+  
 ```
 
 Since we only have lat/lon, not state info, we have to figure out what state each coordinate is in.  First we get an ESRI Shapefile that has a polygon vector for each state.
 ```{r}
 
 # files from https://www.census.gov/geo/maps-data/data/cbf/cbf_counties.html put in gis directory
-states_map_50<-readOGR(dsn="gis",layer="cb_2016_us_state_20m")
+#states_map_50<-readOGR(dsn="gis",layer="cb_2016_us_state_20m")
+states_map_52<-st_read(dsn="gis/cb_2016_us_state_20m.shp")
+states_map_52<-download.file("http://www2.census.gov/geo/tiger/GENZ2016/shp/cb_2016_us_county_20m.zip")
+
+unzip
+states_map_cont<-states_map_52 %>% filter(!(STUSPS %in% c("PR","HI","AK")))
 ```
 
 The  `tidy`/`nest` functions let us extract the polygon data in a way we can use. First we extract the polygons, then assign a state name as `region` to each polygon vector.  Finally, we unnest the table so that each vertex has a state label assigned to it.
   
 ```{r}
-states_map_50_nested<-tidy(states_map_50) %>% 
-  as_data_frame() %>% 
-  mutate(id=as.factor(id)) %>% 
-  group_by(id) %>% 
-  nest() %>% 
-  bind_cols(region=states_map_50$NAME) %>% 
-  group_by(region)
-  
-states_map<-states_map_50_nested %>% 
+
+states_map<-states_map_cont %>% 
   unnest()  %>% 
   select(id,order,region,long,lat) %>% 
   ungroup() %>% 
@@ -150,11 +181,8 @@ map_data("world") %>%
 ```
 Just use ggplot and maps
 ```{r}
-states <- states_map #as_data_frame(map_data("state"))
-#arrests <- as_data_frame(USArrests)
-#names(arrests) <- tolower(names(arrests))
-#arrests$region <- tolower(rownames(USArrests))
-
+#states <- states_map
+states<-as_data_frame(map_data("state"))
 state_sum<-state_sum %>% filter(region != "alaska")
 
 choro <- left_join(states, state_sum, by = "region") %>% 
@@ -166,7 +194,7 @@ choro <- left_join(states, state_sum, by = "region") %>%
 ggplot(choro, aes(long, lat)) +
   geom_polygon(aes(group = region, fill = value)) +
  # coord_map("albers",  at0 = 45.5, lat1 = 29.5)
-  coord_map()+ scale_fill_distiller(name="Bigfoot\nSightings", palette="Greens",direction = 1)+theme_minimal()
+  coord_map()+ scale_fill_distiller(name="Bigfoot\nSightings", palette="Greens",direction = 1)+theme_nothing(legend=TRUE)
 ```
 
 

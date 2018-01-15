@@ -25,7 +25,7 @@ library(plotly)
 library(xml2)
 
 ```
-Load BFRO sighting report from Kaggle dataset. This is sourced from BFRO.net.  I assume the file is parsed from the Google Earth placemarks file found [here](http://www.bfro.net/app/AllReports.kmz).  You will need a Kaggle account to download the files.
+Download the bigfoot sighting reports from BFRO.net.  They are in Google Earth KML format. I assume the file is parsed from the Google Earth placemarks file found [here](http://www.bfro.net/app/AllReportsKMZ.aspx).
 
 Reorder the table column so that `title`,which is the description text is the last column. Add empty `region` field that we will populate with the state later. Filter for bad values.
 
@@ -51,27 +51,44 @@ bfro_data<-bfro_data %>%
 
 bfro_data
 ```
-Alternative direct way to get BFRO data.
+Download and unzip to get KML file.
 
 ```{r}
 #reports<-  st_read("reports.kml")
 
-#download.file("http://www.bfro.net/app/AllReportsKMZ.aspx","allreports.kmz")
+download.file(url="http://www.bfro.net/app/AllReportsKMZ.aspx",destfile = "AllBFROReports.kmz",mode="wb")
+unzip("AllBFROReports.kmz",junkpaths = TRUE)
+```
 
-#doc_kml<-unz("allreports.kmz","doc.kml")
+Parse the xml.
+```{r}
+long<-xml_find_all(kml, ".//Folder/Placemark/LookAt/longitude") %>% 
+  xml_text() %>% 
+  as.numeric()
+lat<-xml_find_all(kml, ".//Folder/Placemark/LookAt/latitude") %>% 
+  xml_text() %>% 
+  as.numeric()
+date<-xml_find_all(kml, ".//Folder/Placemark/TimeStamp/when") %>% 
+  xml_text() %>% 
+  as.Date()
+class<-xml_find_all(kml, ".//Folder/Placemark/description/a") %>% 
+  xml_text() %>% str_replace("Class ","")
+report_id<-xml_find_all(kml, ".//Folder/Placemark/description/b") %>% 
+  xml_text() %>% 
+  str_replace("\n.*Report (\\d+).*","\\1")
+description<-xml_find_all(kml, ".//Folder/Placemark/description/b") %>% 
+  xml_text() %>% 
+  str_replace("\n.*Report (\\d+): (.*)","\\2")
 
-reports_xml<-read_xml("reports.kml")
-report_nodes<-reports_xml %>% 
-  xml_children() %>% 
-  xml_children() %>% 
-  .[3:5] %>%
-  xml_children()
+bfro_data<-data_frame(report_id,
+                      date,
+                      long,
+                      lat,
+                      class,
+                      description) %>% 
+  filter(date<Sys.Date()) %>%
+  filter(abs(lat<90),abs(long)<180)
 
-long<-report_nodes[4] %>% str_extract("(longitude>)([-0-9.]+)") %>% str_extract("[0-9.-]+") %>% as.numeric()
-lat<-report_nodes[4] %>% str_extract("(latitude>)([-0-9.]+)") %>% str_extract("[0-9.-]+") %>% as.numeric()
-date<-report_nodes[4] %>% str_extract("(when>)([-0-9.]+)") %>% str_replace("when>","") %>% as.Date()
-#description<-report_nodes[4] %>% str_extract("(Report:)(.)(/b)") %>% str_replace("/b","")
-  
 ```
 
 Since we only have lat/lon, not state info, we have to figure out what state each coordinate is in.  First we get an ESRI Shapefile that has a polygon vector for each state.
@@ -82,7 +99,7 @@ Since we only have lat/lon, not state info, we have to figure out what state eac
 states_map_52<-st_read(dsn="gis/cb_2016_us_state_20m.shp")
 states_map_52<-download.file("http://www2.census.gov/geo/tiger/GENZ2016/shp/cb_2016_us_county_20m.zip")
 
-unzip
+
 states_map_cont<-states_map_52 %>% filter(!(STUSPS %in% c("PR","HI","AK")))
 ```
 

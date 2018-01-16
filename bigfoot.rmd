@@ -25,32 +25,8 @@ library(plotly)
 library(xml2)
 
 ```
-Download the bigfoot sighting reports from BFRO.net.  They are in Google Earth KML format. I assume the file is parsed from the Google Earth placemarks file found [here](http://www.bfro.net/app/AllReportsKMZ.aspx).
+Download the bigfoot sighting reports from BFRO.net, the Bigfoot Research Organization.  They are in Google Earth KML format [here](http://www.bfro.net/app/AllReportsKMZ.aspx).  The `st_read` function can handle KML format, unfortunately the organization of this particular KML file makes reading it difficult.  `st_read`  reads one "layer" at a time but this file treats every bigfoot sighting as a different layer.  Further complicating matters, there are many duplicate layer names and `st_read` will only read the first one it encounters. Finally, the examples shown in the XML tutorials assume nicely hiearchical data structures. This ain't that.  In the end is was more convenient to parse the KML file as an XML document by hand.
 
-Reorder the table column so that `title`,which is the description text is the last column. Add empty `region` field that we will populate with the state later. Filter for bad values.
-
-```{r message=FALSE}
-# you must log in to Kaggle download this data set
-# https://www.kaggle.com/chemcnabb/bfro-bigfoot-sighting-report/downloads/bfro-report-locations.csv
-
-
-
-bfro_data<-read_csv("bfro-report-locations.csv")
-bfro_data<-bfro_data %>% 
-  mutate(region=as.character(NA)) %>% 
-  rename(lat=latitude) %>% 
-  rename(long=longitude) %>% 
-  mutate(timestamp=as.Date(timestamp)) %>% 
-  select(matches("[^(title)]"),title) %>% 
-  filter(timestamp<Sys.Date()) %>%
-  filter(abs(lat<90),abs(long)<180)
-
-#direct link
-#download.file("http://www.bfro.net/app/AllReports.kmz","allreports.kmz")
-#bfro_data<-st_read("allreports.kmz")
-
-bfro_data
-```
 Download and unzip to get KML file.
 
 ```{r}
@@ -60,17 +36,19 @@ download.file(url="http://www.bfro.net/app/AllReportsKMZ.aspx",destfile = "AllBF
 unzip("AllBFROReports.kmz",junkpaths = TRUE)
 ```
 
-Parse the xml.
+Parse the xml.  Most sighting `<Folder>`s have two `<Placemark>` nodes. The second usually contains redundant information, timestamps, in particular.  Remove the redundant `<Placemark>` nodes first, then put the information we want in a data frame.
 ```{r}
+#remove unneeded nodes that might have give duplicate information.
+kml %>% xml_find_all(".//Folder/Placemark[name[contains(.,'Location Boundaries')]]") %>% 
+  xml_remove(free=TRUE)
+
+#extract the fields we want
 long<-xml_find_all(kml, ".//Folder/Placemark/LookAt/longitude") %>% 
   xml_text() %>% 
   as.numeric()
 lat<-xml_find_all(kml, ".//Folder/Placemark/LookAt/latitude") %>% 
   xml_text() %>% 
   as.numeric()
-date<-xml_find_all(kml, ".//Folder/Placemark/TimeStamp/when") %>% 
-  xml_text() %>% 
-  as.Date()
 class<-xml_find_all(kml, ".//Folder/Placemark/description/a") %>% 
   xml_text() %>% str_replace("Class ","")
 report_id<-xml_find_all(kml, ".//Folder/Placemark/description/b") %>% 
@@ -79,7 +57,11 @@ report_id<-xml_find_all(kml, ".//Folder/Placemark/description/b") %>%
 description<-xml_find_all(kml, ".//Folder/Placemark/description/b") %>% 
   xml_text() %>% 
   str_replace("\n.*Report (\\d+): (.*)","\\2")
+date<-xml_find_all(kml, ".//Folder/Placemark/TimeStamp/when") %>% 
+  xml_text() %>% 
+  as.Date()
 
+#create data frame. Remove obviously impossible times and coordinates.
 bfro_data<-data_frame(report_id,
                       date,
                       long,
@@ -88,6 +70,7 @@ bfro_data<-data_frame(report_id,
                       description) %>% 
   filter(date<Sys.Date()) %>%
   filter(abs(lat<90),abs(long)<180)
+bfro_data
 
 ```
 
@@ -96,8 +79,12 @@ Since we only have lat/lon, not state info, we have to figure out what state eac
 
 # files from https://www.census.gov/geo/maps-data/data/cbf/cbf_counties.html put in gis directory
 #states_map_50<-readOGR(dsn="gis",layer="cb_2016_us_state_20m")
+states_map_52<-download.file("http://www2.census.gov/geo/tiger/GENZ2016/shp/cb_2016_us_county_20m.zip","gis/state_polygons.zip",mode="wb")
+unzip("gis/state_polygons.zip")
+
+#WORKING ON THIS
+states_map_52<-st_read(dsn="gis/state_polygons.shp")
 states_map_52<-st_read(dsn="gis/cb_2016_us_state_20m.shp")
-states_map_52<-download.file("http://www2.census.gov/geo/tiger/GENZ2016/shp/cb_2016_us_county_20m.zip")
 
 
 states_map_cont<-states_map_52 %>% filter(!(STUSPS %in% c("PR","HI","AK")))

@@ -22,7 +22,6 @@ library(maps)
 library(magick)
 library(plotly)
 library(xml2)
-library(stringr)
 
 ```
 Download the bigfoot sighting reports from BFRO.net, the Bigfoot Research Organization.  They are in Google Earth KML format [here](http://www.bfro.net/app/AllReportsKMZ.aspx).  The `st_read` function can handle KML format, unfortunately the organization of this particular KML file makes reading it difficult.  `st_read`  reads one "layer" at a time but this file treats every bigfoot sighting as a different layer.  Further complicating matters, there are many duplicate layer names and `st_read` will only read the first one it encounters. Finally, the examples shown in the XML tutorials assume nicely hiearchical data structures. This ain't that.  In the end is was more convenient to parse the KML file as an XML document by hand.
@@ -84,15 +83,15 @@ Since we only have lat/lon, not state info, we have to figure out what state eac
 
 # files from https://www.census.gov/geo/maps-data/data/cbf/cbf_counties.html put in gis directory
 #states_map_50<-readOGR(dsn="gis",layer="cb_2016_us_state_20m")
-states_map_52<-download.file("http://www2.census.gov/geo/tiger/GENZ2016/shp/cb_2016_us_state_20m.zip","gis/state_polygons.zip",mode="wb")
-start_dir=getwd()
+states_map_52<-download.file("http://www2.census.gov/geo/tiger/GENZ2016/shp/cb_2016_us_county_20m.zip","gis/state_polygons.zip",mode="wb")
 setwd("./gis")
 unzip("state_polygons.zip")
-setwd(start_dir)
+
 
 #WORKING ON THIS
 #states_map_52<-st_read(dsn="gis/state_polygons.shp")
 states_map_52<-st_read(dsn="gis/cb_2016_us_state_20m.shp")
+states_map_52<-st_read(dsn="gis/"")
 
 
 states_map_cont<-states_map_52 %>% filter(!(STUSPS %in% c("PR","HI","AK")))
@@ -163,8 +162,10 @@ gg
 If we want to make this chart more interactive we can use the plotly package which has a nice choropleth facility built in.
 
 ```{r}
-
-state_sum$hover <- paste(str_to_title(state_sum$region),state_sum$value,"sightings")
+df <- read.csv("https://raw.githubusercontent.com/plotly/datasets/master/2011_us_ag_exports.csv")
+df$hover <- with(df, paste(state, '<br>', "Beef", beef, "Dairy", dairy, "<br>",
+                           "Fruits", total.fruits, "Veggies", total.veggies,
+                           "<br>", "Wheat", wheat, "Corn", corn))
 # give state boundaries a white border
 l <- list(color = toRGB("white"), width = 2)
 # specify some map projection/options
@@ -175,19 +176,19 @@ g <- list(
   lakecolor = toRGB('white')
 )
 
-p <- plot_geo(state_sum, locationmode = 'USA-states') %>%
+p <- plot_geo(df, locationmode = 'USA-states') %>%
   add_trace(
-    z = ~value, text = ~hover, locations = ~region,
-    color = ~value, colors = 'Greens'
+    z = ~total.exports, text = ~hover, locations = ~code,
+    color = ~total.exports, colors = 'Purples'
   ) %>%
-  colorbar(title = "Sighting Count") %>%
+  colorbar(title = "Millions USD") %>%
   layout(
-    title = 'Bigfoot Sightings<br>(Hover for breakdown)',
+    title = '2011 US Agriculture Exports by State<br>(Hover for breakdown)',
     geo = g
   )
 p
 
-map_data("state") %>%
+map_data("world") %>%
   group_by(group) %>%
   plot_geo(x = ~long, y = ~lat) %>%
   add_markers(size = I(1))

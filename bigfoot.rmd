@@ -33,6 +33,11 @@ Download and unzip to get KML file.
 
 download.file(url="http://www.bfro.net/app/AllReportsKMZ.aspx",destfile = "AllBFROReports.kmz",mode="wb")
 unzip("AllBFROReports.kmz",junkpaths = TRUE)
+
+# files from https://www.census.gov/geo/maps-data/data/cbf/cbf_counties.html put in gis directory
+state_file<-"http://www2.census.gov/geo/tiger/GENZ2016/shp/cb_2016_us_state_20m.zip"
+states_map_52<-download.file(state_file,"gis/state_polygons.zip",mode="wb")
+
 ```
 
 Parse the xml.  Most sighting `<Folder>`s have two `<Placemark>` nodes. The second usually contains redundant information, timestamps, in particular.  Remove the redundant `<Placemark>` nodes first, then put the information we want in a data frame.
@@ -81,21 +86,29 @@ bfro_data
 Since we only have lat/lon, not state info, we have to figure out what state each coordinate is in.  First we get an ESRI Shapefile that has a polygon vector for each state.
 ```{r}
 
-# files from https://www.census.gov/geo/maps-data/data/cbf/cbf_counties.html put in gis directory
-#states_map_50<-readOGR(dsn="gis",layer="cb_2016_us_state_20m")
-states_map_52<-download.file("http://www2.census.gov/geo/tiger/GENZ2016/shp/cb_2016_us_county_20m.zip","gis/state_polygons.zip",mode="wb")
+startwd<-getwd()
 setwd("./gis")
 unzip("state_polygons.zip")
+setwd(startwd)
 
 
 #WORKING ON THIS
 #states_map_52<-st_read(dsn="gis/state_polygons.shp")
 states_map_52<-st_read(dsn="gis/cb_2016_us_state_20m.shp")
-states_map_52<-st_read(dsn="gis/"")
 
 
 states_map_cont<-states_map_52 %>% filter(!(STUSPS %in% c("PR","HI","AK")))
 ```
+
+Assign states to the sightings.
+```{r}
+#make coordinates a simple feature
+bfro_data<-bfro_data %>% st_as_sf(coords=c("long","lat"))
+
+st_within(bfro_data$geometry,states_map_52$geometry)
+```
+
+
 
 The  `tidy`/`nest` functions let us extract the polygon data in a way we can use. First we extract the polygons, then assign a state name as `region` to each polygon vector.  Finally, we unnest the table so that each vertex has a state label assigned to it.
   
